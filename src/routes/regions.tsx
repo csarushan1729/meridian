@@ -13,6 +13,38 @@ function RegionsPage() {
   const snapshot = useCluster((s) => s.snapshot);
   if (!snapshot) return null;
 
+  if (snapshot.mode === "live") {
+    const c = snapshot.live?.cluster;
+    return (
+      <div className="mx-auto flex max-w-6xl flex-col gap-4">
+        <div>
+          <p className="text-xs tracking-wide text-subtle uppercase">Consensus</p>
+          <h1 className="mt-1 text-2xl font-medium tracking-tight">Regions</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            Live mode runs on one host, so there is no multi-region Raft here. The three-region Raft view is part of
+            the simulation only. What is real: Kafka runs as one KRaft node that is both broker and controller.
+          </p>
+        </div>
+        <Panel>
+          <PanelHeader title="Kafka cluster (real)" />
+          {c ? (
+            <dl className="space-y-1 font-mono text-sm">
+              <div>cluster id: {c.clusterId}</div>
+              <div>controller: node {c.controller}</div>
+              {c.brokers.map((b) => (
+                <div key={b.nodeId}>
+                  broker {b.nodeId}: {b.host}:{b.port}
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-sm text-muted">Cluster info is not available right now.</p>
+          )}
+        </Panel>
+      </div>
+    );
+  }
+
   const healthy = snapshot.raft.filter((n) => !n.partitioned).length;
 
   return (

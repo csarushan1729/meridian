@@ -12,7 +12,9 @@ export type ServiceId =
 export type TopicId =
   | "orders.commands"
   | "orders.events"
+  | "inventory.commands"
   | "inventory.events"
+  | "payments.commands"
   | "payments.events"
   | "fulfillment.events"
   | "shipping.events"
@@ -210,7 +212,7 @@ export interface PatternFlag {
 }
 
 export interface PlatformSnapshot {
-  dbBackend: "pglite" | "neon" | "memory";
+  dbBackend: "pglite" | "neon" | "memory" | "postgres";
   kafka: {
     name: string;
     implementation: string;
@@ -245,7 +247,37 @@ export interface PlatformSnapshot {
   aws: { layer: string; here: string; aws: string }[];
 }
 
+/** Chaos switches in live mode. They are real: values live in Redis and the services read them. */
+export interface LiveChaos {
+  traffic: number; // orders per second sent through the real gateway
+  declineRate: number; // 0..1 card declines in payments
+  inventoryCrashRate: number; // 0..1 inventory handler throws -> retries -> dead-letter
+  latencyMs: Record<string, number>; // extra delay in inventory / payments
+  paused: Record<string, boolean>; // service stops reading Kafka (lag grows)
+}
+
+export interface LiveInfo {
+  chaos: LiveChaos | null;
+  cluster: {
+    clusterId: string;
+    controller: number;
+    brokers: { nodeId: number; host: string; port: number }[];
+  } | null;
+  consumerGroups: {
+    groupId: string;
+    service: ServiceId;
+    topic: TopicId;
+    lag: number;
+    rate: number;
+  }[];
+  breaker: { state: string; failures: number; threshold: number; cooldownMs: number };
+  outboxUnsent: number;
+}
+
 export interface Snapshot {
+  /** "live" = data comes from the real Docker services. Missing = the built-in simulation. */
+  mode?: "demo" | "live";
+  live?: LiveInfo;
   now: number;
   startedAt: number;
   headline: string;

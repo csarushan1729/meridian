@@ -9,12 +9,14 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fmtPct } from "@/lib/format";
+import { LiveChaosPage } from "@/components/chaos/live-chaos";
 
 export const Route = createFileRoute("/chaos")({ component: ChaosPage });
 
 function ChaosPage() {
   const snapshot = useCluster((s) => s.snapshot);
   if (!snapshot) return null;
+  if (snapshot.mode === "live" && snapshot.live?.chaos) return <LiveChaosPage snapshot={snapshot} />;
   const chaos = snapshot.chaos;
 
   return (

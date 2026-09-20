@@ -32,7 +32,7 @@ function OverviewPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">{snapshot.headline}</p>
         <p className="mt-1 font-mono text-xs text-subtle">
-          Kafka · Redis · {snapshot.platform.dbBackend === "neon" ? "Neon" : "Postgres"} · 8 services
+          Kafka · Redis · {snapshot.platform.dbBackend === "neon" ? "Neon" : "Postgres"} · {snapshot.services.length} services
         </p>
       </div>
 

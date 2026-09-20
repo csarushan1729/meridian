@@ -1,22 +1,36 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { ChaosConfig, RegionId, Snapshot } from "@/lib/cluster/types";
+import type {
+  ChaosConfig,
+  LiveChaos,
+  RegionId,
+  Snapshot,
+} from "@/lib/cluster/types";
+
+// Live data (Docker backend) when the control service is reachable, otherwise the simulation.
+// The decision is made in snapshot.server.ts.
 
 export const getClusterSnapshot = createServerFn({ method: "GET" }).handler(
   async (): Promise<Snapshot> => {
-    const { getRuntime } = await import("./runtime.server");
-    const rt = await getRuntime();
-    return rt.snapshot();
+    const { getSnapshot } = await import("./snapshot.server");
+    return getSnapshot();
   },
 );
 
 export const placeOrderFn = createServerFn({ method: "POST" })
-  .validator((d: { skuId?: string; qty?: number; region?: RegionId; idempotencyKey?: string }) => d)
+  .validator(
+    (d: {
+      skuId?: string;
+      qty?: number;
+      region?: RegionId;
+      idempotencyKey?: string;
+    }) => d,
+  )
   .handler(async ({ data }): Promise<string> => {
-    const { getRuntime } = await import("./runtime.server");
-    const rt = await getRuntime();
-    return rt.engine.placeOrder(data);
+    const { placeOrder } = await import("./snapshot.server");
+    return placeOrder(data);
   });
 
+/** Simulation chaos (demo mode only). */
 export const setChaosFn = createServerFn({ method: "POST" })
   .validator((d: Partial<ChaosConfig>) => d)
   .handler(async ({ data }): Promise<void> => {
@@ -25,8 +39,17 @@ export const setChaosFn = createServerFn({ method: "POST" })
     rt.engine.setChaos(data);
   });
 
-export const restockFn = createServerFn({ method: "POST" }).handler(async (): Promise<void> => {
-  const { getRuntime } = await import("./runtime.server");
-  const rt = await getRuntime();
-  rt.engine.restock();
-});
+/** Real chaos (live mode): switches in Redis that the Docker services read. */
+export const setLiveChaosFn = createServerFn({ method: "POST" })
+  .validator((d: Partial<LiveChaos>) => d)
+  .handler(async ({ data }): Promise<void> => {
+    const { setLiveChaos } = await import("./snapshot.server");
+    await setLiveChaos(data);
+  });
+
+export const restockFn = createServerFn({ method: "POST" }).handler(
+  async (): Promise<void> => {
+    const { restock } = await import("./snapshot.server");
+    await restock();
+  },
+);

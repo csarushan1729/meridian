@@ -18,3 +18,8 @@ export async function applyChaos(redis, service) {
   const crash = await chaosNumber(redis, service, 'crashrate', 0);
   if (crash > 0 && Math.random() < crash) throw new Error(`chaos: simulated crash in ${service}`);
 }
+
+/** "Pause" = the service stops reading from Kafka (like a stopped container), but stays reachable over HTTP. */
+export async function isPaused(redis, service) {
+  return (await redis.get(`chaos:${service}:paused`)) === '1';
+}

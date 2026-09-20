@@ -13,8 +13,8 @@ export const Route = createRootRoute({
   loader: async () => {
     try {
       if (import.meta.env.SSR) {
-        const { getRuntime } = await import("@/lib/cluster/runtime.server");
-        return (await getRuntime()).snapshot();
+        const { getSnapshot } = await import("@/lib/cluster/snapshot.server");
+        return await getSnapshot();
       }
       return await getClusterSnapshot();
     } catch (err) {

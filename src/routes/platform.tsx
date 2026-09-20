@@ -11,7 +11,7 @@ export const Route = createFileRoute("/platform")({ component: PlatformPage });
 function PlatformPage() {
   const snapshot = useCluster((s) => s.snapshot);
   const p = snapshot.platform;
-  const dbLabel = p.dbBackend === "neon" ? "Neon Postgres" : p.dbBackend === "pglite" ? "PGLite (Postgres)" : "Memory";
+  const dbLabel = p.dbBackend === "neon" ? "Neon Postgres" : p.dbBackend === "postgres" ? "Postgres 16" : p.dbBackend === "pglite" ? "PGLite (Postgres)" : "Memory";
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">

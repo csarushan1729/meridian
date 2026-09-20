@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { PlaceOrderButton } from "@/components/layout/place-order";
 import { StatusPill } from "@/components/shared/status-pill";
+import { Badge } from "@/components/ui/badge";
 
 const ICONS = {
   "/": LayoutGrid,
@@ -36,6 +37,7 @@ const ICONS = {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const snapshot = useCluster((s) => s.snapshot);
+  const ready = useCluster((s) => s.ready);
   const [moreOpen, setMoreOpen] = useState(false);
 
   return (
@@ -49,6 +51,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="hidden font-mono text-xs text-subtle md:inline">
             helix-prod
           </span>
+          <Badge tone={ready && snapshot.mode === "live" ? "ok" : "neutral"}>
+            {!ready ? "connecting…" : snapshot.mode === "live" ? "live · real Kafka" : "demo · simulated"}
+          </Badge>
           <div className="ml-auto flex items-center gap-2 md:gap-3">
             <StatusPill
               className="hidden sm:inline-flex"

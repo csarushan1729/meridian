@@ -4,7 +4,7 @@ name: meridian
 #   docker compose up -d --build
 #
 # Ports on your PC:
-#   4000 gateway   4002 orders   4003 inventory   4004 payments   4005 ledger
+#   4000 gateway   4002 orders   4003 inventory   4004 payments   4005 ledger   4010 control
 #   9092 kafka     6379 redis    5433 postgres    8081 kafka-ui (optional)
 
 x-service-env: &service-env
@@ -118,6 +118,8 @@ services:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
   inventory:
     <<: *service
@@ -167,6 +169,29 @@ services:
       init:
         condition: service_completed_successfully
       postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # The dashboard's backend: collects metrics, Kafka lag and Redis stats, and holds the chaos switches.
+  control:
+    <<: *service
+    command: ["node", "control/index.mjs"]
+    ports:
+      - "4010:4010"
+    environment:
+      <<: *service-env
+      PORT: 4010
+      GATEWAY_URL: http://gateway:4000
+      ORDERS_URL: http://orders:4002
+      INVENTORY_URL: http://inventory:4003
+      PAYMENTS_URL: http://payments:4004
+      LEDGER_URL: http://ledger:4005
+      PAYMENT_DECLINE_RATE: 0.05
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      redis:
         condition: service_healthy
 
   # ---------------------------------------------------------------- optional: see Kafka in a browser

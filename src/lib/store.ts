@@ -1,7 +1,13 @@
 import { create } from "zustand";
-import { getClusterSnapshot, placeOrderFn, restockFn, setChaosFn } from "@/lib/cluster/api";
+import {
+  getClusterSnapshot,
+  placeOrderFn,
+  restockFn,
+  setChaosFn,
+  setLiveChaosFn,
+} from "@/lib/cluster/api";
 import { bootSnapshot } from "@/lib/cluster/engine";
-import type { ChaosConfig, RegionId, Snapshot } from "@/lib/cluster/types";
+import type { ChaosConfig, LiveChaos, RegionId, Snapshot } from "@/lib/cluster/types";
 
 const IDLE = bootSnapshot();
 
@@ -64,6 +70,10 @@ export function placeOrder(input?: {
 
 export function setChaos(partial: Partial<ChaosConfig>) {
   void setChaosFn({ data: partial });
+}
+
+export function setLiveChaos(partial: Partial<LiveChaos>) {
+  void setLiveChaosFn({ data: partial });
 }
 
 export function restock() {

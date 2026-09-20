@@ -278,6 +278,7 @@ export function createOrders({
     status: r.status,
     reason: r.reason,
     traceId: r.trace_id,
+    idempotencyKey: r.idempotency_key,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   });
@@ -293,7 +294,20 @@ export function createOrders({
         const { rows } = status
           ? await pool.query('SELECT * FROM orders WHERE status = $2 ORDER BY created_at DESC LIMIT $1', [limit, status])
           : await pool.query('SELECT * FROM orders ORDER BY created_at DESC LIMIT $1', [limit]);
-        return { body: { orders: rows.map(toOrder) } };
+        const orders = rows.map(toOrder);
+        if (query.get('steps') === '1' && orders.length) {
+          const st = await pool.query(
+            'SELECT order_id, name, status, detail, at FROM order_steps WHERE order_id = ANY($1::text[]) ORDER BY id',
+            [orders.map((o) => o.id)],
+          );
+          const byOrder = new Map();
+          for (const r of st.rows) {
+            if (!byOrder.has(r.order_id)) byOrder.set(r.order_id, []);
+            byOrder.get(r.order_id).push({ name: r.name, status: r.status, detail: r.detail, at: r.at });
+          }
+          for (const o of orders) o.steps = byOrder.get(o.id) ?? [];
+        }
+        return { body: { orders } };
       },
     ],
     [
@@ -315,11 +329,35 @@ export function createOrders({
       async () => {
         const byStatus = await pool.query('SELECT status, count(*)::int AS n FROM orders GROUP BY status');
         const outbox = await pool.query('SELECT count(*)::int AS n FROM outbox WHERE sent_at IS NULL');
+        // Last 5 minutes: outcomes and how long confirmed orders took (created -> confirmed).
+        const recent = (
+          await pool.query(`
+            SELECT
+              count(*) FILTER (WHERE status = 'CONFIRMED')::int AS confirmed,
+              count(*) FILTER (WHERE status = 'CANCELLED')::int AS cancelled,
+              count(*) FILTER (WHERE status = 'CANCELLED' AND
+                (reason IN ('inventory_timeout', 'payment_timeout') OR reason LIKE 'circuit_open%'))::int AS system_failures,
+              percentile_cont(0.5)  WITHIN GROUP (ORDER BY extract(epoch FROM (updated_at - created_at)) * 1000) FILTER (WHERE status = 'CONFIRMED') AS p50,
+              percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM (updated_at - created_at)) * 1000) FILTER (WHERE status = 'CONFIRMED') AS p95,
+              percentile_cont(0.99) WITHIN GROUP (ORDER BY extract(epoch FROM (updated_at - created_at)) * 1000) FILTER (WHERE status = 'CONFIRMED') AS p99
+            FROM orders WHERE updated_at > now() - interval '5 minutes' AND status IN ('CONFIRMED', 'CANCELLED')`)
+        ).rows[0];
+        const created10 = (
+          await pool.query(`SELECT count(*)::int AS n FROM orders WHERE created_at > now() - interval '10 seconds'`)
+        ).rows[0].n;
         return {
           body: {
             byStatus: Object.fromEntries(byStatus.rows.map((r) => [r.status, r.n])),
             outboxUnsent: outbox.rows[0].n,
             breaker: breaker.snapshot(),
+            recent: {
+              windowSec: 300,
+              confirmed: recent.confirmed,
+              cancelled: recent.cancelled,
+              systemFailures: recent.system_failures,
+              latencyMs: { p50: Number(recent.p50 ?? 0), p95: Number(recent.p95 ?? 0), p99: Number(recent.p99 ?? 0) },
+              createdPerSec: created10 / 10,
+            },
           },
         };
       },

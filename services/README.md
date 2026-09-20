@@ -21,6 +21,7 @@ Place orders (Windows CMD, keep the quotes):
 | inventory | 4003 | stock, reservations                    | reads `inventory.commands`; writes `inventory.events`        |
 | payments  | 4004 | payments                               | reads `payments.commands`; writes `payments.events`          |
 | ledger    | 4005 | ledger_entries                         | reads `payments.events`                                      |
+| control   | 4010 | nothing (reads metrics, Kafka, Redis)  | dashboard backend: `GET /snapshot`, `POST /chaos`            |
 
 ## Saga
 
@@ -51,3 +52,17 @@ The tests use real Redis and real Postgres. Kafka is replaced by an in-memory bu
 ## What is simulated
 
 The payment provider (random declines). Everything else, including Kafka, Redis and Postgres, is real.
+
+## Dashboard live mode
+
+The dashboard (`npm run dev`, port 8080) tries `http://localhost:4010` (the control service).
+- Reachable: header badge says "live · real Kafka" and every page shows real data.
+- Not reachable: it falls back to the built-in simulation ("demo · simulated").
+- `CONTROL_URL` changes the address. `DASHBOARD_MODE=demo` forces the simulation.
+
+Chaos page in live mode changes Redis keys that the services read:
+
+    chaos:payments:declinerate   chaos:inventory:crashrate
+    chaos:<svc>:latency_ms       chaos:<svc>:paused   (paused = stop reading Kafka)
+
+Only Regions (3-region Raft) is simulation-only.

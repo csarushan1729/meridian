@@ -25,6 +25,7 @@ export async function createBus({ clientId, brokers, log }) {
   });
   await rawProducer.connect();
   const consumers = [];
+  const timers = [];
 
   // Message key = orderId, so every event of one order goes to the same partition
   // and is read in order.
@@ -45,7 +46,7 @@ export async function createBus({ clientId, brokers, log }) {
   }
   const send = (topic, key, envelope) => sendBatch([{ topic, key, envelope }]);
 
-  async function consume({ groupId, topics, handler, maxAttempts = 3 }) {
+  async function consume({ groupId, topics, handler, maxAttempts = 3, pausedCheck }) {
     const consumer = kafka.consumer({ groupId, sessionTimeout: 15000, heartbeatInterval: 3000 });
     await consumer.connect();
     for (const topic of topics) await consumer.subscribe({ topic, fromBeginning: true });
@@ -70,9 +71,33 @@ export async function createBus({ clientId, brokers, log }) {
       },
     });
     consumers.push(consumer);
+
+    // Optional "pause" switch (used by the dashboard's chaos page): when pausedCheck()
+    // is true we stop fetching, so lag grows exactly like with a stopped container.
+    if (pausedCheck) {
+      let paused = false;
+      const timer = setInterval(async () => {
+        try {
+          const want = await pausedCheck();
+          if (want && !paused) {
+            consumer.pause(topics.map((topic) => ({ topic })));
+            paused = true;
+            log?.warn('consumer paused', { groupId });
+          } else if (!want && paused) {
+            consumer.resume(topics.map((topic) => ({ topic })));
+            paused = false;
+            log?.warn('consumer resumed', { groupId });
+          }
+        } catch {
+          /* redis hiccup: try again next tick */
+        }
+      }, 500);
+      timers.push(timer);
+    }
   }
 
   async function close() {
+    timers.forEach(clearInterval);
     for (const c of consumers) await c.disconnect().catch(() => {});
     await rawProducer.disconnect().catch(() => {});
   }

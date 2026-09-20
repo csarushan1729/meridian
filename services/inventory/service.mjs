@@ -117,7 +117,21 @@ export function createInventory({ pool, redis, bus, log }) {
     [
       'GET',
       '/stock',
-      async () => ({ body: { stock: (await pool.query('SELECT * FROM stock ORDER BY sku_id')).rows } }),
+      async () => ({
+        body: {
+          stock: (await pool.query('SELECT * FROM stock ORDER BY sku_id')).rows,
+          reservations: (await pool.query('SELECT count(*)::int AS n FROM reservations')).rows[0].n,
+        },
+      }),
+    ],
+    // Put the shelves back to the starting numbers (for demos).
+    [
+      'POST',
+      '/restock',
+      async () => {
+        for (const s of SKUS) await pool.query('UPDATE stock SET available = $2 WHERE sku_id = $1', [s.id, s.stock]);
+        return { body: { ok: true } };
+      },
     ],
   ];
 
