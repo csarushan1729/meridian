@@ -1,0 +1,15 @@
+node_modules
+.git
+.output
+.vercel
+.tanstack
+.grok
+.env
+.env.*
+services
+infra
+docker-compose.yml
+Dockerfile.dashboard
+screenshots
+artifacts
+*.zip

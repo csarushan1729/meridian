@@ -3,9 +3,10 @@ name: meridian
 # Real infrastructure + real microservices.
 #   docker compose up -d --build
 #
-# Ports on your PC:
+# Ports on your PC (all bound to 127.0.0.1, so nothing is exposed to the network, except the dashboard):
 #   4000 gateway   4002 orders   4003 inventory   4004 payments   4005 ledger   4010 control
 #   9092 kafka     6379 redis    5433 postgres    8081 kafka-ui (optional)
+#   8080 dashboard (change with DASHBOARD_PORT in a .env file; on AWS use DASHBOARD_PORT=80)
 
 x-service-env: &service-env
   KAFKA_BROKERS: kafka:19092
@@ -19,9 +20,10 @@ x-service: &service
 services:
   # ---------------------------------------------------------------- infrastructure
   kafka:
+    restart: unless-stopped
     image: apache/kafka:3.9.0
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -44,10 +46,11 @@ services:
       start_period: 15s
 
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -57,12 +60,13 @@ services:
       retries: 20
 
   postgres:
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: meridian
       POSTGRES_PASSWORD: meridian
     ports:
-      - "5433:5432" # 5433 on your PC so it does not clash with a local Postgres
+      - "127.0.0.1:5433:5432" # 5433 on your PC so it does not clash with a local Postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
@@ -88,7 +92,7 @@ services:
     <<: *service
     command: ["node", "gateway/index.mjs"]
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       <<: *service-env
       PORT: 4000
@@ -104,7 +108,7 @@ services:
     <<: *service
     command: ["node", "orders/index.mjs"]
     ports:
-      - "4002:4002"
+      - "127.0.0.1:4002:4002"
     environment:
       <<: *service-env
       PORT: 4002
@@ -125,7 +129,7 @@ services:
     <<: *service
     command: ["node", "inventory/index.mjs"]
     ports:
-      - "4003:4003"
+      - "127.0.0.1:4003:4003"
     environment:
       <<: *service-env
       PORT: 4003
@@ -142,7 +146,7 @@ services:
     <<: *service
     command: ["node", "payments/index.mjs"]
     ports:
-      - "4004:4004"
+      - "127.0.0.1:4004:4004"
     environment:
       <<: *service-env
       PORT: 4004
@@ -160,7 +164,7 @@ services:
     <<: *service
     command: ["node", "ledger/index.mjs"]
     ports:
-      - "4005:4005"
+      - "127.0.0.1:4005:4005"
     environment:
       <<: *service-env
       PORT: 4005
@@ -178,7 +182,7 @@ services:
     <<: *service
     command: ["node", "control/index.mjs"]
     ports:
-      - "4010:4010"
+      - "127.0.0.1:4010:4010"
     environment:
       <<: *service-env
       PORT: 4010
@@ -194,13 +198,28 @@ services:
       redis:
         condition: service_healthy
 
+  # The dashboard (web UI). Reads everything from the control service.
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    image: meridian-dashboard:dev
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-8080}:3000"
+    environment:
+      CONTROL_URL: http://control:4010
+    depends_on:
+      control:
+        condition: service_started
+
   # ---------------------------------------------------------------- optional: see Kafka in a browser
   #   docker compose --profile ui up -d kafka-ui      then open http://localhost:8081
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     profiles: ["ui"]
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: meridian
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
