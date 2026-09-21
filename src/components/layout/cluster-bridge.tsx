@@ -6,16 +6,16 @@ export function ClusterBridge({
   initial,
   children,
 }: {
-  initial: Snapshot;
+  initial: Snapshot | null;
   children: ReactNode;
 }) {
   useState(() => {
-    hydrateCluster(initial);
+    if (initial) hydrateCluster(initial);
     return true;
   });
 
   useEffect(() => {
-    hydrateCluster(initial);
+    if (initial) hydrateCluster(initial);
     startClusterPolling();
   }, [initial]);
 

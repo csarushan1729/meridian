@@ -13,11 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BusRouteImport } from './routes/bus'
 import { Route as ChaosRouteImport } from './routes/chaos'
 import { Route as IncidentsRouteImport } from './routes/incidents'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MeshRouteImport } from './routes/mesh'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as RegionsRouteImport } from './routes/regions'
 import { Route as TracesRouteImport } from './routes/traces'
+import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -37,6 +39,11 @@ const ChaosRoute = ChaosRouteImport.update({
 const IncidentsRoute = IncidentsRouteImport.update({
   id: '/incidents',
   path: '/incidents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MeshRoute = MeshRouteImport.update({
@@ -64,28 +71,37 @@ const TracesRoute = TracesRouteImport.update({
   path: '/traces',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bus': typeof BusRoute
   '/chaos': typeof ChaosRoute
   '/incidents': typeof IncidentsRoute
+  '/login': typeof LoginRoute
   '/mesh': typeof MeshRoute
   '/orders': typeof OrdersRoute
   '/platform': typeof PlatformRoute
   '/regions': typeof RegionsRoute
   '/traces': typeof TracesRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bus': typeof BusRoute
   '/chaos': typeof ChaosRoute
   '/incidents': typeof IncidentsRoute
+  '/login': typeof LoginRoute
   '/mesh': typeof MeshRoute
   '/orders': typeof OrdersRoute
   '/platform': typeof PlatformRoute
   '/regions': typeof RegionsRoute
   '/traces': typeof TracesRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -93,11 +109,13 @@ export interface FileRoutesById {
   '/bus': typeof BusRoute
   '/chaos': typeof ChaosRoute
   '/incidents': typeof IncidentsRoute
+  '/login': typeof LoginRoute
   '/mesh': typeof MeshRoute
   '/orders': typeof OrdersRoute
   '/platform': typeof PlatformRoute
   '/regions': typeof RegionsRoute
   '/traces': typeof TracesRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -106,33 +124,39 @@ export interface FileRouteTypes {
     | '/bus'
     | '/chaos'
     | '/incidents'
+    | '/login'
     | '/mesh'
     | '/orders'
     | '/platform'
     | '/regions'
     | '/traces'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/bus'
     | '/chaos'
     | '/incidents'
+    | '/login'
     | '/mesh'
     | '/orders'
     | '/platform'
     | '/regions'
     | '/traces'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/'
     | '/bus'
     | '/chaos'
     | '/incidents'
+    | '/login'
     | '/mesh'
     | '/orders'
     | '/platform'
     | '/regions'
     | '/traces'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -140,11 +164,13 @@ export interface RootRouteChildren {
   BusRoute: typeof BusRoute
   ChaosRoute: typeof ChaosRoute
   IncidentsRoute: typeof IncidentsRoute
+  LoginRoute: typeof LoginRoute
   MeshRoute: typeof MeshRoute
   OrdersRoute: typeof OrdersRoute
   PlatformRoute: typeof PlatformRoute
   RegionsRoute: typeof RegionsRoute
   TracesRoute: typeof TracesRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -175,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/incidents'
       fullPath: '/incidents'
       preLoaderRoute: typeof IncidentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mesh': {
@@ -212,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TracesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -220,11 +260,13 @@ const rootRouteChildren: RootRouteChildren = {
   BusRoute: BusRoute,
   ChaosRoute: ChaosRoute,
   IncidentsRoute: IncidentsRoute,
+  LoginRoute: LoginRoute,
   MeshRoute: MeshRoute,
   OrdersRoute: OrdersRoute,
   PlatformRoute: PlatformRoute,
   RegionsRoute: RegionsRoute,
   TracesRoute: TracesRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

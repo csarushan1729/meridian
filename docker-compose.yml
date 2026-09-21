@@ -198,7 +198,23 @@ services:
       redis:
         condition: service_healthy
 
-  # The dashboard (web UI). Reads everything from the control service.
+  # One-shot job: creates the "auth" database (users, sessions) and its tables, then exits.
+  dashboard-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+      target: build
+    image: meridian-dashboard-build:dev
+    command: ["sh", "-c", "node scripts/ensure-database.mjs && node scripts/migrate.mjs"]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://meridian:meridian@postgres:5432/auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # The dashboard (web UI) with sign-up / sign-in. Reads everything from the control service.
+  # Needs BETTER_AUTH_SECRET in the .env file (a long random string that signs the login cookies).
   dashboard:
     build:
       context: .
@@ -209,9 +225,27 @@ services:
       - "${DASHBOARD_PORT:-8080}:3000"
     environment:
       CONTROL_URL: http://control:4010
+      VITE_AUTH_ENABLED: "true"
+      DATABASE_URL: postgres://meridian:meridian@postgres:5432/auth
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Add BETTER_AUTH_SECRET to the .env file, see the steps}
+      # Hosts allowed to sign in. Quick Cloudflare tunnels get a new random name each time.
+      AUTH_EXTRA_HOSTS: ${AUTH_EXTRA_HOSTS:-*.trycloudflare.com}
+      # With a fixed domain, set this to the exact public URL, for example https://demo.example.com
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+      # Email codes (OTP). Set SMTP_HOST in the .env file to turn email verification ON.
+      # Leave SMTP_HOST empty and sign-up works without a code.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      OTP_CONSOLE: ${OTP_CONSOLE:-}
     depends_on:
       control:
         condition: service_started
+      dashboard-migrate:
+        condition: service_completed_successfully
 
   # ---------------------------------------------------------------- optional: see Kafka in a browser
   #   docker compose --profile ui up -d kafka-ui      then open http://localhost:8081

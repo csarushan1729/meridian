@@ -30,13 +30,14 @@
  * a verified id via `@/lib/auth/middleware`.
  */
 import { betterAuth } from "better-auth";
-import { bearer, genericOAuth } from "better-auth/plugins";
+import { bearer, emailOTP, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
+import { otpEnabled, sendOtpEmail } from "./mailer.server";
 import { GATE_PROVIDER_ID, gateIdentitySessions } from "./gate-session.server";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
@@ -94,7 +95,13 @@ export const authConfigured =
 const explicitBaseURL = env("BETTER_AUTH_URL");
 // Explicit `string[]` (not a readonly tuple) — Better Auth's DynamicBaseURLConfig
 // requires a mutable `allowedHosts: string[]`.
-const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS];
+// AUTH_EXTRA_HOSTS = comma separated hosts that may use sign-in, e.g. "*.trycloudflare.com".
+// (For a fixed domain prefer setting BETTER_AUTH_URL to the exact public URL.)
+const extraAuthHosts = (env("AUTH_EXTRA_HOSTS") ?? "")
+  .split(",")
+  .map((h) => h.trim())
+  .filter(Boolean);
+const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS, ...extraAuthHosts];
 // Local `npm run dev` (port 8080 contract). Browsers may send Origin as any of
 // these for the same server — trusting only `localhost` rejects `127.0.0.1` and
 // breaks email/password with "Invalid origin".
@@ -211,7 +218,14 @@ export const auth = betterAuth({
   session: { cookieCache: { enabled: true, maxAge: 300 } },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
-  ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
+  // With OTP on (SMTP_HOST or OTP_CONSOLE set), a new account must enter the 6-digit
+  // code from its email before it can sign in. With neither set, sign-up works as before.
+  ...(emailAndPasswordEnabled
+    ? { emailAndPassword: { enabled: true, requireEmailVerification: otpEnabled } }
+    : {}),
+  ...(otpEnabled
+    ? { emailVerification: { sendOnSignIn: true, autoSignInAfterVerification: true } }
+    : {}),
 
   // `__Host-` prefixed cookies: the browser REFUSES any same-named cookie that
   // carries a `Domain` attribute, so a sibling `*.grok.me` app cannot "toss" a
@@ -220,7 +234,22 @@ export const auth = betterAuth({
   // Domain), so we drop its auto prefix (`useSecureCookies: false`) and set
   // Secure + the names ourselves. (Browsers allow Secure cookies on
   // `http://localhost`, so local dev still works.)
+  // Limits per client IP, so nobody can use the sign-up form to flood other people's inboxes.
+  // Behind a Cloudflare tunnel the real visitor IP is in `cf-connecting-ip`.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-up/email": { window: 60, max: 5 },
+      "/sign-in/email": { window: 60, max: 10 },
+      "/email-otp/send-verification-otp": { window: 60, max: 3 },
+      "/email-otp/verify-email": { window: 60, max: 10 },
+    },
+  },
+
   advanced: {
+    ipAddress: { ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"] },
     useSecureCookies: false,
     defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
     cookies: {
@@ -245,6 +274,25 @@ export const auth = betterAuth({
     // fires when an Authorization header is present, so the cookie path
     // (deployed apps) is unaffected.
     bearer(),
+
+    // Email one-time codes (OTP): sent at sign-up, and again when an unverified
+    // account tries to sign in. Codes expire after 5 minutes, allow 3 wrong tries,
+    // and are stored hashed. Better Auth also rate-limits sending (3 per minute).
+    ...(otpEnabled
+      ? [
+          emailOTP({
+            otpLength: 6,
+            expiresIn: 300,
+            allowedAttempts: 3,
+            storeOTP: "hashed",
+            sendVerificationOnSignUp: true,
+            overrideDefaultEmailVerification: true,
+            sendVerificationOTP: async ({ email, otp, type }) => {
+              await sendOtpEmail({ to: email, otp, type });
+            },
+          }),
+        ]
+      : []),
 
     // Bridges Better Auth's Set-Cookie into TanStack Start responses. MUST be
     // last so it runs after every other plugin's hooks.

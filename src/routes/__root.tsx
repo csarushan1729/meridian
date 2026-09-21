@@ -1,10 +1,19 @@
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Outlet,
+  Scripts,
+  useLocation,
+} from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
+import { RedirectToSignIn } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { AppShell } from "@/components/layout/app-shell";
 import { ClusterBridge } from "@/components/layout/cluster-bridge";
 import { getClusterSnapshot } from "@/lib/cluster/api";
 import { bootSnapshot } from "@/lib/cluster/engine";
+import type { Snapshot } from "@/lib/cluster/types";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Meridian";
@@ -13,11 +22,19 @@ export const Route = createRootRoute({
   loader: async () => {
     try {
       if (import.meta.env.SSR) {
+        // Signed-out visitors get no dashboard data in the page HTML.
+        const { requireUserId } = await import("@/lib/auth/verify.server");
+        try {
+          await requireUserId();
+        } catch {
+          return null;
+        }
         const { getSnapshot } = await import("@/lib/cluster/snapshot.server");
         return await getSnapshot();
       }
       return await getClusterSnapshot();
     } catch (err) {
+      if (err instanceof Error && err.message === "Unauthorized") return null;
       console.error("[helix] snapshot loader failed", err);
       return bootSnapshot();
     }
@@ -61,14 +78,29 @@ function RootComponent() {
       <body>
         <PreviewHostBridge />
         <AuthProvider>
-          <ClusterBridge initial={initial}>
-            <AppShell>
-              <Outlet />
-            </AppShell>
-          </ClusterBridge>
+          <AuthGate initial={initial} />
         </AuthProvider>
         <Scripts />
       </body>
     </html>
+  );
+}
+
+/** /login is open to everyone. Every other page needs a signed-in user. */
+function AuthGate({ initial }: { initial: Snapshot | null }) {
+  const { user, isPending } = useCurrentUserState();
+  const pathname = useLocation({ select: (l) => l.pathname });
+
+  if (pathname === "/login") return <Outlet />;
+  if (isPending) {
+    return <div className="grid min-h-dvh place-items-center text-sm text-muted">Loading…</div>;
+  }
+  if (!user) return <RedirectToSignIn />;
+  return (
+    <ClusterBridge initial={initial}>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </ClusterBridge>
   );
 }

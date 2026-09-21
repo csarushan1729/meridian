@@ -18,6 +18,7 @@ import { fmtClock, fmtPct, fmtRps } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { AccountMenu } from "@/components/layout/account-menu";
 import { PlaceOrderButton } from "@/components/layout/place-order";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {fmtClock(snapshot.now)}
             </span>
             <PlaceOrderButton compact />
+            <AccountMenu />
             <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden">

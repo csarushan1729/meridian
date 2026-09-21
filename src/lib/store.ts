@@ -30,6 +30,7 @@ export const useCluster = create<ClusterState>((set) => ({
 }));
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let signedOutRedirect = false;
 
 export function hydrateCluster(snapshot: Snapshot) {
   useCluster.setState({ snapshot, ready: true });
@@ -42,8 +43,13 @@ export function startClusterPolling() {
     try {
       const snapshot = await getClusterSnapshot();
       useCluster.setState({ snapshot, ready: true });
-    } catch {
-      /* keep last snapshot */
+    } catch (err) {
+      // Session ended (expired or signed out elsewhere): go to the sign-in page once.
+      if (err instanceof Error && err.message === "Unauthorized" && !signedOutRedirect) {
+        signedOutRedirect = true;
+        window.location.assign("/login");
+      }
+      /* otherwise keep the last snapshot */
     }
   };
   void tick();

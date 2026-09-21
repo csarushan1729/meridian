@@ -3,6 +3,8 @@
 
 FROM node:22-alpine AS build
 WORKDIR /app
+# Sign-in is ON in this image (the flag is baked into the browser code at build time).
+ENV VITE_AUTH_ENABLED=true
 COPY package.json package-lock.json ./
 # `npm install`, not `npm ci`: the project's lock file is slightly out of sync with package.json
 RUN npm install --no-audit --no-fund
@@ -15,6 +17,7 @@ WORKDIR /app
 COPY --from=build /app/.output ./.output
 ENV NODE_ENV=production \
     PORT=3000 \
+    VITE_AUTH_ENABLED=true \
     CONTROL_URL=http://control:4010
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
