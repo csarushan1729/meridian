@@ -1,0 +1,7 @@
+# Public HTTPS front door for the dashboard.
+# Caddy asks Let's Encrypt for a free certificate for SITE_DOMAIN and renews it by itself.
+# Needs: SITE_DOMAIN in .env, DNS for that name pointing to this server, ports 80 and 443 open.
+{$SITE_DOMAIN} {
+	encode gzip
+	reverse_proxy {$DASHBOARD_UPSTREAM:dashboard:3000}
+}

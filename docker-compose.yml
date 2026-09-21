@@ -222,7 +222,7 @@ services:
     image: meridian-dashboard:dev
     restart: unless-stopped
     ports:
-      - "${DASHBOARD_PORT:-8080}:3000"
+      - "${DASHBOARD_BIND:-0.0.0.0}:${DASHBOARD_PORT:-8080}:3000"
     environment:
       CONTROL_URL: http://control:4010
       VITE_AUTH_ENABLED: "true"
@@ -247,6 +247,26 @@ services:
       dashboard-migrate:
         condition: service_completed_successfully
 
+  # HTTPS with a free certificate (Let's Encrypt). Turn it on by putting COMPOSE_PROFILES=https
+  # and SITE_DOMAIN=your.domain in the .env file. Sign-in needs HTTPS (secure cookies).
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-}
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      dashboard:
+        condition: service_started
+
   # ---------------------------------------------------------------- optional: see Kafka in a browser
   #   docker compose --profile ui up -d kafka-ui      then open http://localhost:8081
   kafka-ui:
@@ -264,3 +284,5 @@ services:
 volumes:
   redisdata:
   pgdata:
+  caddydata:
+  caddyconfig:
